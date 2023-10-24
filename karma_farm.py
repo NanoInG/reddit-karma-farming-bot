@@ -91,20 +91,21 @@ def slack_alert(message):
             print_to("Error sending slack alert: " + e.response["error"], slack=False, error=True)
 
 
-def do_comment():
-    subreddit = reddit_bot.subreddit("FreeKarma4All")
-    random_posts = open("randomposts.txt").read()
-    random_posts = random_posts.split('\n')
-    for submission in subreddit.stream.submissions():
-        done = open(posts_replied_to_file, 'r').read().split(',')
-        if submission.id not in done:
-            rand = random.randint(0, len(random_posts) - 1)
-            random_post = random_posts[rand]
-            print_to("Replying to post: " + submission.title, slack=False)
-            submission.reply(random_post)
-            time.sleep(80)
-            with open(posts_replied_to_file, "a") as posts_replied_to:
-                posts_replied_to.write(submission.id + ",")
+def do_comment(subreddit_list):
+    for subreddit_name in subreddit_list:
+        subreddit = reddit_bot.subreddit(subreddit_name)
+        random_posts = open("randomposts.txt").read()
+        random_posts = random_posts.split('\n')
+        for submission in subreddit.stream.submissions():
+            done = open(posts_replied_to_file, 'r').read().split(',')
+            if submission.id not in done:
+                rand = random.randint(0, len(random_posts) - 1)
+                random_post = random_posts[rand]
+                print_to(f"Replying to post in r/{subreddit_name}: {submission.title}", slack=False)
+                submission.reply(random_post)
+                time.sleep(80)
+                with open(posts_replied_to_file, "a") as posts_replied_to:
+                    posts_replied_to.write(submission.id + ",")
             done = open(posts_replied_to_file, 'r').read().split(',')
 
 
@@ -120,8 +121,8 @@ def print_to(message, slack=True, error=False):
         slack_alert(message)
 
 
-def go():
-    global is_init
+def go(subreddit_list):
+    is_init = False
     try:
         if not is_init:
             is_init = True
@@ -130,7 +131,7 @@ def go():
             load_reddit_bot()
             load_scheduler()
             print_to("Bot started - Commenting every 80 seconds")
-        do_comment()
+        do_comment(subreddit_list)  # Pass the subreddit_list as an argument
     except KeyboardInterrupt:
         sched.shutdown()
         print_to("Stopping Bot...")
@@ -142,10 +143,9 @@ def go():
                 breakTime += int(re.findall(r"\d+ minutes", str(error))[0].split(" ")[0])
             print_to(f"Restarting Bot in {breakTime} minutes...", slack=True)
             time.sleep(60 * breakTime)
-            go()
+            go(subreddit_list)  # Pass the subreddit_list as an argument
         else:
             print_to(error, error=True)
 
-
-is_init = False
-go()
+subreddit_list = open("subreddit_list.txt").read().split('\n')  # Read subreddit names from the file
+go(subreddit_list)
